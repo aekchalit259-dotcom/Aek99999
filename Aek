@@ -1,0 +1,332 @@
+-- โหลด UI Library
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/x2zu/OPEN-SOURCE-UI-ROBLOX/refs/heads/main/X2ZU%20UI%20ROBLOX%20OPEN%20SOURCE/DummyUi-leak-by-x2zu/fetching-main/Tools/Framework.luau"))()
+
+-- บริการหลักของ Roblox
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ตัวแปรสถานะ
+local FlyEnabled = false
+local FlySpeed = 50
+local WalkSpeedValue = 16
+local NoclipEnabled = false
+local InvisibleEnabled = false
+local ESPEnabled = false
+local AimbotEnabled = false
+local Highlights = {}
+
+-- สร้างหน้าต่างหลัก
+local Window = Library:Window({
+    Title = "MM2 สคริปต์ [ Stellar ]",
+    Desc = "ระบบควบคุมตัวละครและ ESP สำหรับ MM2",
+    Icon = 105059922903197,
+    Theme = "Dark",
+    Config = {
+        Keybind = Enum.KeyCode.LeftControl,
+        Size = UDim2.new(0, 500, 0, 400)
+    },
+    CloseUIButton = {
+        Enabled = true,
+        Text = "ปิดหน้าต่าง"
+    }
+})
+
+-- เส้นแบ่งไซด์บาร์
+local SidebarLine = Instance.new("Frame")
+SidebarLine.Size = UDim2.new(0, 1, 1, 0)
+SidebarLine.Position = UDim2.new(0, 140, 0, 0)
+SidebarLine.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SidebarLine.BorderSizePixel = 0
+SidebarLine.ZIndex = 5
+SidebarLine.Name = "SidebarLine"
+SidebarLine.Parent = game:GetService("CoreGui")
+
+----------------------------------------------------------------
+-- ฟังก์ชันช่วยคำนวณและตรวจสอบบทบาท
+----------------------------------------------------------------
+
+local function GetRole(player)
+    if not player or not player.Character then return "Innocent" end
+    if player.Backpack:FindFirstChild("Knife") or player.Character:FindFirstChild("Knife") then
+        return "Murderer"
+    elseif player.Backpack:FindFirstChild("Gun") or player.Character:FindFirstChild("Gun") then
+        return "Sheriff"
+    end
+    return "Innocent"
+end
+
+local function GetRoleColor(role)
+    if role == "Murderer" then
+        return Color3.fromRGB(255, 0, 0) -- สีแดง
+    elseif role == "Sheriff" then
+        return Color3.fromRGB(0, 191, 255) -- สีฟ้า
+    else
+        return Color3.fromRGB(0, 255, 0) -- สีเขียว
+    end
+end
+
+----------------------------------------------------------------
+-- แท็บที่ 1: ผู้เล่น (Player Functions)
+----------------------------------------------------------------
+local MainTab = Window:Tab({Title = "ผู้เล่น", Icon = "user"}) do
+    MainTab:Section({Title = "ระบบเคลื่อนที่"})
+
+    -- เปิด/ปิด บิน
+    MainTab:Toggle({
+        Title = "บิน (Fly)",
+        Desc = "เปิด/ปิด ระบบการบิน",
+        Value = false,
+        Callback = function(v)
+            FlyEnabled = v
+            if FlyEnabled then
+                task.spawn(function()
+                    local char = LocalPlayer.Character
+                    if not char then return end
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if not hrp then return end
+
+                    local bodyVel = Instance.new("BodyVelocity")
+                    bodyVel.Name = "FlyVelocity"
+                    bodyVel.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+                    bodyVel.Parent = hrp
+
+                    local bodyGyro = Instance.new("BodyGyro")
+                    bodyGyro.Name = "FlyGyro"
+                    bodyGyro.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+                    bodyGyro.P = 9000
+                    bodyGyro.Parent = hrp
+
+                    while FlyEnabled and char and hrp and hrp:FindFirstChild("FlyVelocity") do
+                        local camera = Workspace.CurrentCamera
+                        local moveDir = Vector3.zero
+
+                        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+                        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+
+                        bodyVel.Velocity = moveDir * FlySpeed
+                        bodyGyro.CFrame = camera.CFrame
+                        RunService.RenderStepped:Wait()
+                    end
+
+                    if bodyVel then bodyVel:Destroy() end
+                    if bodyGyro then bodyGyro:Destroy() end
+                end)
+            end
+        end
+    })
+
+    -- ปรับความเร็วการบิน
+    MainTab:Slider({
+        Title = "ความเร็วการบิน",
+        Min = 10,
+        Max = 200,
+        Rounding = 0,
+        Value = 50,
+        Callback = function(val)
+            FlySpeed = val
+        end
+    })
+
+    -- ปรับความเร็วเดิน
+    MainTab:Slider({
+        Title = "ความเร็วเดิน (WalkSpeed)",
+        Min = 16,
+        Max = 150,
+        Rounding = 0,
+        Value = 16,
+        Callback = function(val)
+            WalkSpeedValue = val
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.WalkSpeed = val
+            end
+        end
+    })
+
+    -- เปิด/ปิด เดินทะลุ
+    MainTab:Toggle({
+        Title = "เดินทะลุสิ่งขวางกั้น (Noclip)",
+        Desc = "สามารถเดินทะลุกำแพงและวัตถุได้",
+        Value = false,
+        Callback = function(v)
+            NoclipEnabled = v
+        end
+    })
+
+    -- เปิด/ปิด ล่องหน
+    MainTab:Toggle({
+        Title = "ล่องหน (Invisible)",
+        Desc = "ซ่อนตัวละครจากผู้เล่นคนอื่น",
+        Value = false,
+        Callback = function(v)
+            InvisibleEnabled = v
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") or part:IsA("Decal") then
+                        if part.Name ~= "HumanoidRootPart" then
+                            part.Transparency = InvisibleEnabled and 1 or 0
+                        end
+                    end
+                end
+            end
+        end
+    })
+
+    MainTab:Section({Title = "ระบบเคลื่อนย้าย"})
+
+    -- วาร์ปแบบกำหนดสุ่มตำแหน่ง
+    MainTab:Button({
+        Title = "วาร์ปสุ่มตำแหน่ง",
+        Desc = "วาร์ปไปยังตำแหน่งสุ่มในแผนที่",
+        Callback = function()
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                local randomX = math.random(-50, 50)
+                local randomZ = math.random(-50, 50)
+                LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(randomX, 5, randomZ)
+                Window:Notify({
+                    Title = "วาร์ปสำเร็จ",
+                    Desc = "ทำการวาร์ปไปยังตำแหน่งใหม่เรียบร้อย",
+                    Time = 2
+                })
+            end
+        end
+    })
+end
+
+----------------------------------------------------------------
+-- แท็บที่ 2: ระบบเกม (MM2 Features)
+----------------------------------------------------------------
+Window:Line()
+local CombatTab = Window:Tab({Title = "ระบบการเล่น", Icon = "swords"}) do
+    CombatTab:Section({Title = "มองเห็นและล็อกเป้า"})
+
+    -- ESP ตรวจจับบทบาท
+    CombatTab:Toggle({
+        Title = "ESP แยกสีตามบทบาท",
+        Desc = "Murder = แดง | Sheriff = ฟ้า | Innocent = เขียว",
+        Value = false,
+        Callback = function(v)
+            ESPEnabled = v
+            if not ESPEnabled then
+                for _, hl in pairs(Highlights) do
+                    if hl then hl:Destroy() end
+                end
+                Highlights = {}
+            end
+        end
+    })
+
+    -- Aimbot สำหรับ Sheriff ล็อก Murderer
+    CombatTab:Toggle({
+        Title = "Aimbot ล็อก Murderer (สำหรับ Sheriff)",
+        Desc = "หันกล้องไปยัง Murderer อัตโนมัติเมื่อถือปืน",
+        Value = false,
+        Callback = function(v)
+            AimbotEnabled = v
+        end
+    })
+
+    CombatTab:Section({Title = "คำสั่งพิเศษ"})
+
+    -- Kill All
+    CombatTab:Button({
+        Title = "ดึงผู้เล่นทุกคนมาหา (Kill All)",
+        Desc = "วาร์ปตัวผู้เล่นทุกคนในเซิร์ฟเวอร์มาที่ตำแหน่งของคุณ",
+        Callback = function()
+            local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not myHrp then return end
+
+            local count = 0
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    player.Character.HumanoidRootPart.CFrame = myHrp.CFrame + (myHrp.CFrame.LookVector * 2)
+                    count = count + 1
+                end
+            end
+
+            Window:Notify({
+                Title = "ดึงผู้เล่นสำเร็จ",
+                Desc = "วาร์ปผู้เล่นจำนวน " .. tostring(count) .. " คนเรียบร้อย",
+                Time = 3
+            })
+        end
+    })
+end
+
+----------------------------------------------------------------
+-- Loop ทำงานเบื้องหลัง (RenderStepped & Heartbeat)
+----------------------------------------------------------------
+
+-- ระบบ WalkSpeed ป้องกันเกมรีเซ็ตค่า
+RunService.Stepped:Connect(function()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        if LocalPlayer.Character.Humanoid.WalkSpeed ~= WalkSpeedValue then
+            LocalPlayer.Character.Humanoid.WalkSpeed = WalkSpeedValue
+        end
+    end
+
+    -- ระบบ Noclip
+    if NoclipEnabled and LocalPlayer.Character then
+        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- ระบบ ESP และ Aimbot
+RunService.RenderStepped:Connect(function()
+    -- ทำงาน ESP
+    if ESPEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local role = GetRole(player)
+                local color = GetRoleColor(role)
+
+                local highlight = Highlights[player]
+                if not highlight or not highlight.Parent then
+                    highlight = Instance.new("Highlight")
+                    highlight.Name = "MM2_ESP"
+                    highlight.FillTransparency = 0.5
+                    highlight.OutlineTransparency = 0
+                    highlight.Parent = player.Character
+                    Highlights[player] = highlight
+                end
+
+                highlight.FillColor = color
+                highlight.OutlineColor = color
+            end
+        end
+    end
+
+    -- ทำงาน Aimbot
+    if AimbotEnabled then
+        local myRole = GetRole(LocalPlayer)
+        if myRole == "Sheriff" then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and GetRole(player) == "Murderer" then
+                    if player.Character and player.Character:FindFirstChild("Head") then
+                        local camera = Workspace.CurrentCamera
+                        camera.CFrame = CFrame.new(camera.CFrame.Position, player.Character.Head.Position)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- แจ้งเตือนเมื่อโหลดเสร็จสิ้น
+Window:Notify({
+    Title = "MM2 สคริปต์",
+    Desc = "โหลดระบบภาษาไทยและฟังก์ชันทั้งหมดเรียบร้อยแล้ว",
+    Time = 4
+})
